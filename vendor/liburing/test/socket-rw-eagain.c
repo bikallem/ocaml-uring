@@ -15,6 +15,7 @@
 #include <sys/un.h>
 #include <netinet/tcp.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include "liburing.h"
 
@@ -28,6 +29,8 @@ int main(int argc, char *argv[])
 	if (argc > 1)
 		return 0;
 
+	srand(getpid());
+
 	recv_s0 = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
 
 	ret = setsockopt(recv_s0, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
@@ -36,11 +39,19 @@ int main(int argc, char *argv[])
 	assert(ret != -1);
 
 	addr.sin_family = AF_INET;
-	addr.sin_port = 0x1235;
-	addr.sin_addr.s_addr = 0x0100007fU;
+	addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-	ret = bind(recv_s0, (struct sockaddr*)&addr, sizeof(addr));
-	assert(ret != -1);
+	do {
+		addr.sin_port = htons((rand() % 61440) + 4096);
+		ret = bind(recv_s0, (struct sockaddr*)&addr, sizeof(addr));
+		if (!ret)
+			break;
+		if (errno != EADDRINUSE) {
+			perror("bind");
+			exit(1);
+		}
+	} while (1);
+
 	ret = listen(recv_s0, 128);
 	assert(ret != -1);
 
@@ -82,9 +93,13 @@ int main(int argc, char *argv[])
 	}
 
 	struct io_uring m_io_uring;
+	struct io_uring_params p = { };
 
-	ret = io_uring_queue_init(32, &m_io_uring, 0);
+	ret = io_uring_queue_init_params(32, &m_io_uring, &p);
 	assert(ret >= 0);
+
+	if (p.features & IORING_FEAT_FAST_POLL)
+		return 0;
 
 	char recv_buff[128];
 	char send_buff[128];

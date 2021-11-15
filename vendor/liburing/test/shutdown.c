@@ -15,6 +15,7 @@
 #include <sys/un.h>
 #include <netinet/tcp.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include "liburing.h"
 
@@ -32,6 +33,8 @@ int main(int argc, char *argv[])
 	if (argc > 1)
 		return 0;
 
+	srand(getpid());
+
 	recv_s0 = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
 
 	ret = setsockopt(recv_s0, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
@@ -40,8 +43,8 @@ int main(int argc, char *argv[])
 	assert(ret != -1);
 
 	addr.sin_family = AF_INET;
-	addr.sin_port = 0x1235;
-	addr.sin_addr.s_addr = 0x0100007fU;
+	addr.sin_port = htons((rand() % 61440) + 4096);
+	addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
 	ret = bind(recv_s0, (struct sockaddr*)&addr, sizeof(addr));
 	assert(ret != -1);

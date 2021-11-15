@@ -4,9 +4,10 @@ libdir ?= $(prefix)/lib
 libdevdir ?= $(prefix)/lib
 
 CPPFLAGS ?=
-override CPPFLAGS += -Iinclude/ -include ../config-host.h
-CFLAGS ?= -g -fomit-frame-pointer -O2
-override CFLAGS += -Wall -Wextra -Wno-unused-parameter -Wno-sign-compare
+override CPPFLAGS += -D_GNU_SOURCE \
+	-Iinclude/ -include ../config-host.h
+CFLAGS ?= -g -fomit-frame-pointer -O2 -Wall -Wextra
+override CFLAGS += -Wno-unused-parameter -Wno-sign-compare
 SO_CFLAGS=-fPIC $(CFLAGS)
 L_CFLAGS=$(CFLAGS)
 LINK_FLAGS=
@@ -14,7 +15,7 @@ LINK_FLAGS+=$(LDFLAGS)
 ENABLE_SHARED ?= 1
 
 soname=liburing.so.2
-minor=0
+minor=1
 micro=0
 libname=$(soname).$(minor).$(micro)
 all_targets += liburing.a
@@ -31,10 +32,21 @@ endif
 
 all: $(all_targets)
 
-liburing_srcs := setup.c queue.c syscall.c register.c
+liburing_srcs := setup.c queue.c register.c
+
+ifeq ($(CONFIG_NOLIBC),y)
+	liburing_srcs += nolibc.c
+	override CFLAGS += -nostdlib -nodefaultlibs -ffreestanding -fno-stack-protector
+	override CPPFLAGS += -nostdlib -nodefaultlibs -ffreestanding -fno-stack-protector
+	override LINK_FLAGS += -nostdlib -nodefaultlibs
+else
+	liburing_srcs += syscall.c
+endif
 
 liburing_objs := $(patsubst %.c,%.ol,$(liburing_srcs))
 liburing_sobjs := $(patsubst %.c,%.os,$(liburing_srcs))
+
+$(liburing_srcs): syscall.h lib.h
 
 $(liburing_objs) $(liburing_sobjs): include/liburing/io_uring.h
 
@@ -72,3 +84,7 @@ clean:
 	@rm -f $(all_targets) $(liburing_objs) $(liburing_sobjs) $(soname).new
 	@rm -f *.so* *.a *.o
 	@rm -f include/liburing/compat.h
+
+	@# When cleaning, we don't include ../config-host.mak,
+	@# so the nolibc objects are always skipped, clean them up!
+	@rm -f nolibc.ol nolibc.os
