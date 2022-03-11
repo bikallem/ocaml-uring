@@ -560,7 +560,7 @@ ocaml_uring_submit_accept(value v_uring, value v_id, value v_fd, value v_sockadd
   addr->sock_addr_len = sizeof(union sock_addr_union);
   sqe = io_uring_get_sqe(ring);
   if (!sqe) CAMLreturn(Val_false);
-  io_uring_prep_accept(sqe, Int_val(v_fd), &(addr->sock_addr_addr.s_gen), &addr->sock_addr_len, SOCK_CLOEXEC);
+  io_uring_prep_accept(sqe, Int_val(v_fd), &(addr->sock_addr_addr.s_gen), &addr->sock_addr_len, SOCK_CLOEXEC | SOCK_NONBLOCK);
   io_uring_sqe_set_data(sqe, (void *)Long_val(v_id));
   CAMLreturn(Val_true);
 }
